@@ -38,6 +38,14 @@
 
 #include <iomanip>
 
+#include <iostream>
+#include <fstream>
+#include <cstdlib>
+#include <sstream>
+#include <string>
+#include <unordered_map>
+#include <Eigen/Dense>
+
 namespace colmap {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -328,6 +336,45 @@ const ceres::Solver::Summary& BundleAdjuster::Summary() const {
 
 void BundleAdjuster::SetUp(Reconstruction* reconstruction,
                            ceres::LossFunction* loss_function) {
+
+
+  // Read GPS camera positions
+  std::unordered_map<std::string,Eigen::Vector3d> imagePositions;
+  std::ifstream inputFile("/home/threedom/tests/cyprus1500/positions_scaled.txt");
+  if (!inputFile.is_open()) {
+      std::cerr << "Error opening the file." << std::endl;
+      std::exit(EXIT_FAILURE);
+  }
+  std::string line;
+  while (getline(inputFile, line)) {
+      std::istringstream iss(line);
+      std::string imageName;
+      std::string x;
+      std::string y;
+      std::string z;
+      double xd;
+      double yd;
+      double zd;
+      getline(iss, imageName, ',');
+      getline(iss, x, ',');
+      getline(iss, y, ',');
+      getline(iss, z, ',');
+      xd = std::stod(x);
+      yd = std::stod(y);
+      zd = std::stod(z);
+      std::cout << imageName << " " << xd << " " << yd << " " << zd << std::endl;
+      Eigen::Vector3d position(xd, yd, zd);
+      imagePositions[imageName] = position;
+  }
+  inputFile.close();
+
+  for (const auto& entry : imagePositions) {
+      std::cout << "Image: " << entry.first << "\tPosition: " << entry.second.transpose() << std::endl;
+  }
+
+  std::cerr << "Exiting - Testing " << std::endl;
+  std::exit(EXIT_FAILURE);
+
   // Warning: AddPointsToProblem assumes that AddImageToProblem is called first.
   // Do not change order of instructions!
   for (const image_t image_id : config_.Images()) {
