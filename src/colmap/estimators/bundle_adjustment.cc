@@ -45,8 +45,12 @@
 #include <string>
 #include <unordered_map>
 #include <Eigen/Dense>
+#include "colmap/estimators/similarity_transform.h"
 
 namespace colmap {
+
+template <typename T>
+using EigenVector3Map = Eigen::Map<const Eigen::Matrix<T, 3, 1>>;
 
 ////////////////////////////////////////////////////////////////////////////////
 // BundleAdjustmentOptions
@@ -337,43 +341,78 @@ const ceres::Solver::Summary& BundleAdjuster::Summary() const {
 void BundleAdjuster::SetUp(Reconstruction* reconstruction,
                            ceres::LossFunction* loss_function) {
 
+  // Check enough images inside Reconstruction
+  int counter = 0;
+  for (const image_t image_id : config_.Images()) {
+      Image& image = reconstruction->Image(image_id);
+      counter = counter+1;
+  }
 
-  // Read GPS camera positions
-  std::unordered_map<std::string,Eigen::Vector3d> imagePositions;
-  std::ifstream inputFile("/home/threedom/tests/cyprus1500/positions_scaled.txt");
-  if (!inputFile.is_open()) {
-      std::cerr << "Error opening the file." << std::endl;
-      std::exit(EXIT_FAILURE);
-  }
-  std::string line;
-  while (getline(inputFile, line)) {
-      std::istringstream iss(line);
-      std::string imageName;
-      std::string x;
-      std::string y;
-      std::string z;
-      double xd;
-      double yd;
-      double zd;
-      getline(iss, imageName, ',');
-      getline(iss, x, ',');
-      getline(iss, y, ',');
-      getline(iss, z, ',');
-      xd = std::stod(x);
-      yd = std::stod(y);
-      zd = std::stod(z);
-      std::cout << imageName << " " << xd << " " << yd << " " << zd << std::endl;
-      Eigen::Vector3d position(xd, yd, zd);
-      imagePositions[imageName] = position;
-  }
-  inputFile.close();
+  if (counter > 9) {
+    // Read GPS camera positions
+    std::unordered_map<std::string,Eigen::Vector3d> imagePositions;
+    std::ifstream inputFile("/home/threedom/tests/cyprus1500/positions_scaled.txt");
+    if (!inputFile.is_open()) {
+        std::cerr << "Error opening the file." << std::endl;
+        std::exit(EXIT_FAILURE);
+    }
+    std::string line;
+    while (getline(inputFile, line)) {
+        std::istringstream iss(line);
+        std::string imageName;
+        std::string x;
+        std::string y;
+        std::string z;
+        double xd;
+        double yd;
+        double zd;
+        getline(iss, imageName, ',');
+        getline(iss, x, ',');
+        getline(iss, y, ',');
+        getline(iss, z, ',');
+        xd = std::stod(x);
+        yd = std::stod(y);
+        zd = std::stod(z);
+        //std::cout << imageName << " " << xd << " " << yd << " " << zd << std::endl;
+        Eigen::Vector3d position(xd, yd, zd);
+        imagePositions[imageName] = position;
+    }
+    inputFile.close();
 
-  for (const auto& entry : imagePositions) {
-      std::cout << "Image: " << entry.first << "\tPosition: " << entry.second.transpose() << std::endl;
-  }
+    std::vector<Eigen::Vector3d> src;
+    std::vector<Eigen::Vector3d> tgt;
+  
+    // vanno inseriti in un vettore std::vector
+    for (const auto& entry : imagePositions) {
+        //std::cout << "Image: " << entry.first << "\tPosition: " << entry.second.transpose() << std::endl;
+      for (const image_t image_id : config_.Images()) {
+        Image& image = reconstruction->Image(image_id);
+        double* cam_from_world_translation = image.CamFromWorld().translation.data();
+        if (entry.first == image.Name()) {
+          tgt.push_back(entry.second);
+          src.push_back(EigenVector3Map<double>(cam_from_world_translation));
+          std::cout << entry.second.transpose() << std::endl;
+          std::cout << (EigenVector3Map<double>(cam_from_world_translation)).transpose() << std::endl;
+        }
+        }
+    }
+
+    Sim3d transformation;
+    EstimateSim3d(src, tgt, transformation);
+    std::cout << "Ok transformation" << std::endl;
+    std::cout << transformation.ToMatrix() << std::endl;
 
   std::cerr << "Exiting - Testing " << std::endl;
   std::exit(EXIT_FAILURE);
+
+
+  // Le coordinate delle camere non sono giuste, probabilmente bisogna moltiplicarle per l'inverso di q
+  // bisogna applicare la trasformazione a tutte le immagini
+  // ottimizzare con posizioni GPS
+  // si possono anche leggere prioirs positions!!!
+
+  }
+
 
   // Warning: AddPointsToProblem assumes that AddImageToProblem is called first.
   // Do not change order of instructions!
