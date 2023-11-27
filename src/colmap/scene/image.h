@@ -151,6 +151,9 @@ class Image {
   // Extract the viewing direction of the image.
   Eigen::Vector3d ViewingDirection() const;
 
+  // Update camera position
+  void UpdateCameraPosition(Eigen::Vector3d updated_translation, Eigen::Quaterniond updated_rotation);
+
   // The number of levels in the 3D point multi-resolution visibility pyramid.
   static const int kNumPoint3DVisibilityPyramidLevels;
 

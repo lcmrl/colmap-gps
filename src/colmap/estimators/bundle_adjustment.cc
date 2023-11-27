@@ -348,7 +348,7 @@ void BundleAdjuster::SetUp(Reconstruction* reconstruction,
       counter = counter+1;
   }
 
-  if (counter > 9) {
+  if (counter > 4) {
     // Read GPS camera positions
     std::unordered_map<std::string,Eigen::Vector3d> imagePositions;
     std::ifstream inputFile("/home/threedom/tests/cyprus1500/positions_scaled.txt");
@@ -387,12 +387,13 @@ void BundleAdjuster::SetUp(Reconstruction* reconstruction,
         //std::cout << "Image: " << entry.first << "\tPosition: " << entry.second.transpose() << std::endl;
       for (const image_t image_id : config_.Images()) {
         Image& image = reconstruction->Image(image_id);
-        double* cam_from_world_translation = image.CamFromWorld().translation.data();
+        Eigen::Vector3d cam_proj_center = image.ProjectionCenter(); //double* cam_from_world_translation = image.CamFromWorld().translation.data();
+
         if (entry.first == image.Name()) {
           tgt.push_back(entry.second);
-          src.push_back(EigenVector3Map<double>(cam_from_world_translation));
-          std::cout << entry.second.transpose() << std::endl;
-          std::cout << (EigenVector3Map<double>(cam_from_world_translation)).transpose() << std::endl;
+          src.push_back(cam_proj_center); //src.push_back(EigenVector3Map<double>(cam_from_world_translation));
+          std::cout << entry.second.transpose() << std::endl; //std::cout << (EigenVector3Map<double>(cam_from_world_translation)).transpose() << std::endl;
+          std::cout << cam_proj_center.transpose() << std::endl;
         }
         }
     }
@@ -402,8 +403,24 @@ void BundleAdjuster::SetUp(Reconstruction* reconstruction,
     std::cout << "Ok transformation" << std::endl;
     std::cout << transformation.ToMatrix() << std::endl;
 
+    reconstruction->Transform(transformation);
+
+
+    //for (const image_t image_id : config_.Images()) {
+    //  Image& image = reconstruction->Image(image_id);
+    //  Eigen::Vector3d cam_proj_center = image.ProjectionCenter();
+    //  Eigen::Quaterniond cam_orientation = image.CamFromWorld().rotation;
+    //  //Eigen::Vector3d updated_pos = (transformation.rotation * cam_proj_center + transformation.translation);
+    //  Eigen::Vector3d updated_pos = transformation.ToMatrix().leftCols<3>() * cam_proj_center + transformation.ToMatrix().col(3);
+    //  //std::cout << transformation.scale << std::endl;
+    //  Eigen::Quaterniond cam_from_world_rotation = image.CamFromWorld().rotation;
+    //  Eigen::Vector3d updated_translation = -(cam_from_world_rotation * updated_pos);
+    //  Eigen::Quaterniond updated_rotation = transformation.rotation * cam_orientation;
+    //  image.UpdateCameraPosition(updated_translation, updated_rotation);
+    //  }
+
   std::cerr << "Exiting - Testing " << std::endl;
-  std::exit(EXIT_FAILURE);
+  //std::exit(EXIT_FAILURE);
 
 
   // Le coordinate delle camere non sono giuste, probabilmente bisogna moltiplicarle per l'inverso di q

@@ -68,9 +68,9 @@ class ReprojErrorCostFunction {
                   const T* const camera_params,
                   T* residuals) const {
     const Eigen::Matrix<T, 3, 1> point3D_in_cam =
-        EigenQuaternionMap<T>(cam_from_world_rotation) *
+        EigenQuaternionMap<T>(cam_from_world_rotation) * // rotation of the camera ref system respect the world reference system
             EigenVector3Map<T>(point3D) +
-        EigenVector3Map<T>(cam_from_world_translation);
+        EigenVector3Map<T>(cam_from_world_translation); // cam_from_world_translation = vector from camera to world ref system
     CameraModel::ImgFromCam(camera_params,
                             point3D_in_cam[0],
                             point3D_in_cam[1],
