@@ -42,6 +42,52 @@ using EigenVector3Map = Eigen::Map<const Eigen::Matrix<T, 3, 1>>;
 template <typename T>
 using EigenQuaternionMap = Eigen::Map<const Eigen::Quaternion<T>>;
 
+
+// Known GNSS position
+template <typename CameraModel>
+class ReprojErrorConstPositionCostFunction {
+ public:
+  explicit ReprojErrorConstPositionCostFunction(const Eigen::Vector2d& point2D)
+      : observed_x_(point2D(0)), observed_y_(point2D(1)) {}
+
+  static ceres::CostFunction* Create(const Eigen::Vector2d& point2D) {
+    return (
+        new ceres::AutoDiffCostFunction<ReprojErrorConstPositionCostFunction<CameraModel>,
+                                        2,
+                                        4,
+                                        3,
+                                        3,
+                                        CameraModel::num_params>(
+            new ReprojErrorConstPositionCostFunction(point2D)));
+  }
+
+  template <typename T>
+  bool operator()(const T* const cam_from_world_rotation,
+                  const T* const cam_from_world_translation,
+                  const T* const point3D,
+                  const T* const camera_params,
+                  T* residuals) const {
+    const Eigen::Matrix<T, 3, 1> point3D_in_cam =
+        EigenQuaternionMap<T>(cam_from_world_rotation) * // rotation of the camera ref system respect the world reference system
+            EigenVector3Map<T>(point3D) +
+        EigenVector3Map<T>(cam_from_world_translation); // cam_from_world_translation = vector from camera to world ref system
+    CameraModel::ImgFromCam(camera_params,
+                            point3D_in_cam[0],
+                            point3D_in_cam[1],
+                            point3D_in_cam[2],
+                            &residuals[0],
+                            &residuals[1]);
+    residuals[0] -= T(observed_x_);
+    residuals[1] -= T(observed_y_);
+    return true;
+  }
+
+ private:
+  const double observed_x_;
+  const double observed_y_;
+};
+
+
 // Standard bundle adjustment cost function for variable
 // camera pose, calibration, and point parameters.
 template <typename CameraModel>

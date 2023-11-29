@@ -395,7 +395,7 @@ void BundleAdjuster::SetUp(Reconstruction* reconstruction,
           std::cout << entry.second.transpose() << std::endl; //std::cout << (EigenVector3Map<double>(cam_from_world_translation)).transpose() << std::endl;
           std::cout << cam_proj_center.transpose() << std::endl;
         }
-        }
+      }
     }
 
     Sim3d transformation;
@@ -404,7 +404,6 @@ void BundleAdjuster::SetUp(Reconstruction* reconstruction,
     std::cout << transformation.ToMatrix() << std::endl;
 
     reconstruction->Transform(transformation);
-
 
     //for (const image_t image_id : config_.Images()) {
     //  Image& image = reconstruction->Image(image_id);
@@ -418,6 +417,15 @@ void BundleAdjuster::SetUp(Reconstruction* reconstruction,
     //  Eigen::Quaterniond updated_rotation = transformation.rotation * cam_orientation;
     //  image.UpdateCameraPosition(updated_translation, updated_rotation);
     //  }
+
+    for (const auto& entry : imagePositions) {
+      for (const image_t image_id : config_.Images()) {
+        Image& image = reconstruction->Image(image_id);
+        if (entry.first == image.Name()) {
+          image.UpdateCameraPosition(entry.second);
+        }
+      }
+    }
 
   std::cerr << "Exiting - Testing " << std::endl;
   //std::exit(EXIT_FAILURE);
@@ -436,12 +444,12 @@ void BundleAdjuster::SetUp(Reconstruction* reconstruction,
   for (const image_t image_id : config_.Images()) {
     AddImageToProblem(image_id, reconstruction, loss_function);
   }
-  for (const auto point3D_id : config_.VariablePoints()) {
-    AddPointToProblem(point3D_id, reconstruction, loss_function);
-  }
-  for (const auto point3D_id : config_.ConstantPoints()) {
-    AddPointToProblem(point3D_id, reconstruction, loss_function);
-  }
+  //for (const auto point3D_id : config_.VariablePoints()) {
+  //  AddPointToProblem(point3D_id, reconstruction, loss_function);
+  //}
+  //for (const auto point3D_id : config_.ConstantPoints()) {
+  //  AddPointToProblem(point3D_id, reconstruction, loss_function);
+  //}
 
   ParameterizeCameras(reconstruction);
   ParameterizePoints(reconstruction);
@@ -483,26 +491,12 @@ void BundleAdjuster::AddImageToProblem(const image_t image_id,
 
     ceres::CostFunction* cost_function = nullptr;
 
-    if (constant_cam_pose) {
+
+// Cost function for constant camera position
       switch (camera.ModelId()) {
 #define CAMERA_MODEL_CASE(CameraModel)                                        \
   case CameraModel::model_id:                                                 \
-    cost_function = ReprojErrorConstantPoseCostFunction<CameraModel>::Create( \
-        image.CamFromWorld(), point2D.xy);                                    \
-    break;
-
-        CAMERA_MODEL_SWITCH_CASES
-
-#undef CAMERA_MODEL_CASE
-      }
-
-      problem_->AddResidualBlock(
-          cost_function, loss_function, point3D.XYZ().data(), camera_params);
-    } else {
-      switch (camera.ModelId()) {
-#define CAMERA_MODEL_CASE(CameraModel)                                        \
-  case CameraModel::model_id:                                                 \
-    cost_function = ReprojErrorCostFunction<CameraModel>::Create(point2D.xy); \
+    cost_function = ReprojErrorConstPositionCostFunction<CameraModel>::Create(point2D.xy); \
     break;
 
         CAMERA_MODEL_SWITCH_CASES
@@ -516,7 +510,42 @@ void BundleAdjuster::AddImageToProblem(const image_t image_id,
                                  cam_from_world_translation,
                                  point3D.XYZ().data(),
                                  camera_params);
-    }
+
+
+//    if (constant_cam_pose) {
+//      switch (camera.ModelId()) {
+//#define CAMERA_MODEL_CASE(CameraModel)                                        \
+//  case CameraModel::model_id:                                                 \
+//    cost_function = ReprojErrorConstantPoseCostFunction<CameraModel>::Create( \
+//        image.CamFromWorld(), point2D.xy);                                    \
+//    break;
+//
+//        CAMERA_MODEL_SWITCH_CASES
+//
+//#undef CAMERA_MODEL_CASE
+//      }
+//
+//      problem_->AddResidualBlock(
+//          cost_function, loss_function, point3D.XYZ().data(), camera_params);
+//    } else {
+//      switch (camera.ModelId()) {
+//#define CAMERA_MODEL_CASE(CameraModel)                                        \
+//  case CameraModel::model_id:                                                 \
+//    cost_function = ReprojErrorCostFunction<CameraModel>::Create(point2D.xy); \
+//    break;
+//
+//        CAMERA_MODEL_SWITCH_CASES
+//
+//#undef CAMERA_MODEL_CASE
+//      }
+//
+//      problem_->AddResidualBlock(cost_function,
+//                                 loss_function,
+//                                 cam_from_world_rotation,
+//                                 cam_from_world_translation,
+//                                 point3D.XYZ().data(),
+//                                 camera_params);
+//    }
   }
 
   if (num_observations > 0) {

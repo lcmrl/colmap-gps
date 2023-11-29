@@ -144,9 +144,9 @@ Eigen::Vector3d Image::ViewingDirection() const {
   return cam_from_world_.rotation.toRotationMatrix().row(2);
 }
 
-void Image::UpdateCameraPosition(Eigen::Vector3d updated_translation, Eigen::Quaterniond updated_rotation){
-  cam_from_world_.translation = updated_translation;
-  cam_from_world_.rotation = updated_rotation;
+void Image::UpdateCameraPosition(Eigen::Vector3d updated_translation){ // Eigen::Quaterniond updated_rotation
+  cam_from_world_.translation = - cam_from_world_.rotation.toRotationMatrix() * updated_translation;
+  //cam_from_world_.rotation = updated_rotation;
 }
 
 }  // namespace colmap
