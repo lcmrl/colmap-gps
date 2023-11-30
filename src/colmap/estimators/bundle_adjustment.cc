@@ -341,6 +341,8 @@ const ceres::Solver::Summary& BundleAdjuster::Summary() const {
 void BundleAdjuster::SetUp(Reconstruction* reconstruction,
                            ceres::LossFunction* loss_function) {
 
+  std::cout << "000000000000000000000001" << std::endl;
+
   // Check enough images inside Reconstruction
   int counter = 0;
   for (const image_t image_id : config_.Images()) {
@@ -349,9 +351,11 @@ void BundleAdjuster::SetUp(Reconstruction* reconstruction,
   }
 
   if (counter > 4) {
+    std::cout << "000002        " << counter << std::endl;
     // Read GPS camera positions
     std::unordered_map<std::string,Eigen::Vector3d> imagePositions;
-    std::ifstream inputFile("/home/threedom/tests/cyprus1500/positions_scaled.txt");
+    // std::ifstream inputFile("/home/threedom/tests/cyprus1500/positions_scaled.txt");
+    std::ifstream inputFile("/home/threedom/tests/recalibration_high_res_3_giri/fusion_positions.txt");
     if (!inputFile.is_open()) {
         std::cerr << "Error opening the file." << std::endl;
         std::exit(EXIT_FAILURE);
@@ -492,11 +496,26 @@ void BundleAdjuster::AddImageToProblem(const image_t image_id,
     ceres::CostFunction* cost_function = nullptr;
 
 
-// Cost function for constant camera position
+    if (constant_cam_pose) {
       switch (camera.ModelId()) {
 #define CAMERA_MODEL_CASE(CameraModel)                                        \
   case CameraModel::model_id:                                                 \
-    cost_function = ReprojErrorConstPositionCostFunction<CameraModel>::Create(point2D.xy); \
+    cost_function = ReprojErrorConstantPoseCostFunction<CameraModel>::Create( \
+        image.CamFromWorld(), point2D.xy);                                    \
+    break;
+
+        CAMERA_MODEL_SWITCH_CASES
+
+#undef CAMERA_MODEL_CASE
+      }
+
+      problem_->AddResidualBlock(
+          cost_function, loss_function, point3D.XYZ().data(), camera_params);
+    } else {
+      switch (camera.ModelId()) {
+#define CAMERA_MODEL_CASE(CameraModel)                                        \
+  case CameraModel::model_id:                                                 \
+    cost_function = ReprojErrorCostFunction<CameraModel>::Create(point2D.xy); \
     break;
 
         CAMERA_MODEL_SWITCH_CASES
@@ -510,51 +529,24 @@ void BundleAdjuster::AddImageToProblem(const image_t image_id,
                                  cam_from_world_translation,
                                  point3D.XYZ().data(),
                                  camera_params);
-
-
-//    if (constant_cam_pose) {
-//      switch (camera.ModelId()) {
-//#define CAMERA_MODEL_CASE(CameraModel)                                        \
-//  case CameraModel::model_id:                                                 \
-//    cost_function = ReprojErrorConstantPoseCostFunction<CameraModel>::Create( \
-//        image.CamFromWorld(), point2D.xy);                                    \
-//    break;
-//
-//        CAMERA_MODEL_SWITCH_CASES
-//
-//#undef CAMERA_MODEL_CASE
-//      }
-//
-//      problem_->AddResidualBlock(
-//          cost_function, loss_function, point3D.XYZ().data(), camera_params);
-//    } else {
-//      switch (camera.ModelId()) {
-//#define CAMERA_MODEL_CASE(CameraModel)                                        \
-//  case CameraModel::model_id:                                                 \
-//    cost_function = ReprojErrorCostFunction<CameraModel>::Create(point2D.xy); \
-//    break;
-//
-//        CAMERA_MODEL_SWITCH_CASES
-//
-//#undef CAMERA_MODEL_CASE
-//      }
-//
-//      problem_->AddResidualBlock(cost_function,
-//                                 loss_function,
-//                                 cam_from_world_rotation,
-//                                 cam_from_world_translation,
-//                                 point3D.XYZ().data(),
-//                                 camera_params);
-//    }
+    }
   }
 
   if (num_observations > 0) {
     camera_ids_.insert(image.CameraId());
 
     // Set pose parameterization.
+    std::cout << "image_id" << image_id << std::endl;
+    if (image_id != 1) {config_.SetConstantCamPositions(image_id, {0,1,2,3,4,5,6,7,8,9});}
     if (!constant_cam_pose) {
       SetQuaternionManifold(problem_.get(), cam_from_world_rotation);
+
+      std::cout << "config_.HasConstantCamPositions(image_id)  " << image_id << "  " << config_.HasConstantCamPositions(image_id) << std::endl;
       if (config_.HasConstantCamPositions(image_id)) {
+      const std::vector<int>& positions = config_.ConstantCamPositions(image_id);
+    for (int value : positions) {
+        std::cout << "here" << value << " ";
+    }
         const std::vector<int>& constant_position_idxs =
             config_.ConstantCamPositions(image_id);
         SetSubsetManifold(3,

@@ -47,30 +47,35 @@ using EigenQuaternionMap = Eigen::Map<const Eigen::Quaternion<T>>;
 template <typename CameraModel>
 class ReprojErrorConstPositionCostFunction {
  public:
-  explicit ReprojErrorConstPositionCostFunction(const Eigen::Vector2d& point2D)
-      : observed_x_(point2D(0)), observed_y_(point2D(1)) {}
+  explicit ReprojErrorConstPositionCostFunction(
+    const Eigen::Vector3d cam_from_world_translation, 
+    const Eigen::Vector2d& point2D)
+      : cam_from_world_translation_(cam_from_world_translation), 
+      observed_x_(point2D(0)), 
+      observed_y_(point2D(1)) {}
 
-  static ceres::CostFunction* Create(const Eigen::Vector2d& point2D) {
+  static ceres::CostFunction* Create(const Eigen::Vector3d cam_from_world_translation, const Eigen::Vector2d& point2D) {
     return (
         new ceres::AutoDiffCostFunction<ReprojErrorConstPositionCostFunction<CameraModel>,
                                         2,
                                         4,
-                                        3,
+                                        //3,
                                         3,
                                         CameraModel::num_params>(
-            new ReprojErrorConstPositionCostFunction(point2D)));
+            new ReprojErrorConstPositionCostFunction(cam_from_world_translation, point2D)));
   }
+
 
   template <typename T>
   bool operator()(const T* const cam_from_world_rotation,
-                  const T* const cam_from_world_translation,
+                  //const T* const cam_from_world_translation,
                   const T* const point3D,
                   const T* const camera_params,
                   T* residuals) const {
     const Eigen::Matrix<T, 3, 1> point3D_in_cam =
         EigenQuaternionMap<T>(cam_from_world_rotation) * // rotation of the camera ref system respect the world reference system
             EigenVector3Map<T>(point3D) +
-        EigenVector3Map<T>(cam_from_world_translation); // cam_from_world_translation = vector from camera to world ref system
+        cam_from_world_translation_; // cam_from_world_translation = vector from camera to world ref system
     CameraModel::ImgFromCam(camera_params,
                             point3D_in_cam[0],
                             point3D_in_cam[1],
@@ -83,6 +88,7 @@ class ReprojErrorConstPositionCostFunction {
   }
 
  private:
+  const Eigen::Vector3d cam_from_world_translation_;
   const double observed_x_;
   const double observed_y_;
 };
