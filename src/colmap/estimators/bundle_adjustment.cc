@@ -383,6 +383,18 @@ void BundleAdjuster::SetUp(Reconstruction* reconstruction,
     }
     inputFile.close();
 
+    // REMOVING IMAGES WITHOUT GPS
+    for (const image_t id : config_.Images()) {
+      Image& image = reconstruction->Image(id);
+      auto it = imagePositions.find(image.Name());
+      if (it == imagePositions.end()) {
+        reconstruction->DeRegisterImage(id);
+        std::cout << "deleted" << image.Name() << std::endl;
+      }
+    }
+
+
+
     std::vector<Eigen::Vector3d> src;
     std::vector<Eigen::Vector3d> tgt;
   
@@ -430,7 +442,7 @@ void BundleAdjuster::SetUp(Reconstruction* reconstruction,
         }
       }
     }
-
+  //reconstruction -> Write("/mnt/c/Users/lmorelli/Desktop/buttare/outs-optimized");
   std::cerr << "Exiting - Testing " << std::endl;
   //std::exit(EXIT_FAILURE);
 
@@ -537,22 +549,65 @@ void BundleAdjuster::AddImageToProblem(const image_t image_id,
 
     // Set pose parameterization.
     std::cout << "image_id" << image_id << std::endl;
-    if (image_id != 1) {config_.SetConstantCamPositions(image_id, {0,1,2,3,4,5,6,7,8,9});}
+
+    // Read GPS camera positions
+    std::unordered_map<std::string,Eigen::Vector3d> imagePositions;
+    // std::ifstream inputFile("/home/threedom/tests/cyprus1500/positions_scaled.txt");
+    std::ifstream inputFile("/home/threedom/tests/recalibration_high_res_3_giri/fusion_positions.txt");
+    if (!inputFile.is_open()) {
+        std::cerr << "Error opening the file." << std::endl;
+        std::exit(EXIT_FAILURE);
+    }
+    std::string line;
+    while (getline(inputFile, line)) {
+        std::istringstream iss(line);
+        std::string imageName;
+        std::string x;
+        std::string y;
+        std::string z;
+        double xd;
+        double yd;
+        double zd;
+        getline(iss, imageName, ',');
+        getline(iss, x, ',');
+        getline(iss, y, ',');
+        getline(iss, z, ',');
+        xd = std::stod(x);
+        yd = std::stod(y);
+        zd = std::stod(z);
+        //std::cout << imageName << " " << xd << " " << yd << " " << zd << std::endl;
+        Eigen::Vector3d position(xd, yd, zd);
+        imagePositions[imageName] = position;
+    }
+    inputFile.close();
+
+    for (const auto& entry : imagePositions) {
+      for (const image_t id : config_.Images()) {
+        Image& image = reconstruction->Image(id);
+        if (entry.first == image.Name()) {
+          if (config_.HasConstantCamPose(id) != 1) {config_.SetConstantCamPositions(id, {0,1,2});}
+        }
+      }
+    }
+
+    //std::exit(EXIT_FAILURE);
+
+    //if (config_.HasConstantCamPose(image_id) != 1) {config_.SetConstantCamPositions(image_id, {0,1,2});}
     if (!constant_cam_pose) {
       SetQuaternionManifold(problem_.get(), cam_from_world_rotation);
 
       std::cout << "config_.HasConstantCamPositions(image_id)  " << image_id << "  " << config_.HasConstantCamPositions(image_id) << std::endl;
       if (config_.HasConstantCamPositions(image_id)) {
       const std::vector<int>& positions = config_.ConstantCamPositions(image_id);
-    for (int value : positions) {
-        std::cout << "here" << value << " ";
-    }
         const std::vector<int>& constant_position_idxs =
             config_.ConstantCamPositions(image_id);
-        SetSubsetManifold(3,
-                          constant_position_idxs,
-                          problem_.get(),
-                          cam_from_world_translation);
+        //SetSubsetManifold(3,
+        //                  constant_position_idxs,
+        //                  problem_.get(),
+        //                  cam_from_world_translation);
+
+        problem_->SetParameterBlockConstant(cam_from_world_translation);
+        std::cout << "applied" << image_id << std::endl;
       }
     }
   }

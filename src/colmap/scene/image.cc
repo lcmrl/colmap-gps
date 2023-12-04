@@ -146,7 +146,7 @@ Eigen::Vector3d Image::ViewingDirection() const {
 
 void Image::UpdateCameraPosition(Eigen::Vector3d updated_translation){ // Eigen::Quaterniond updated_rotation
   cam_from_world_.translation = - cam_from_world_.rotation.toRotationMatrix() * updated_translation;
-  //cam_from_world_.rotation = updated_rotation;
+  //std::cout << (- cam_from_world_.rotation.toRotationMatrix() * updated_translation).transpose() << std::endl;
 }
 
 }  // namespace colmap
