@@ -44,53 +44,35 @@ using EigenQuaternionMap = Eigen::Map<const Eigen::Quaternion<T>>;
 
 
 // Known GNSS position
-template <typename CameraModel>
-class ReprojErrorConstPositionCostFunction {
+class ReprojErrorKnownPositionCostFunction {
  public:
-  explicit ReprojErrorConstPositionCostFunction(
-    const Eigen::Vector3d cam_from_world_translation, 
-    const Eigen::Vector2d& point2D)
-      : cam_from_world_translation_(cam_from_world_translation), 
-      observed_x_(point2D(0)), 
-      observed_y_(point2D(1)) {}
+  explicit ReprojErrorKnownPositionCostFunction(
+    const Eigen::Vector3d observed_camera_position)
+      : observed_camera_position_(observed_camera_position) {}
 
-  static ceres::CostFunction* Create(const Eigen::Vector3d cam_from_world_translation, const Eigen::Vector2d& point2D) {
+  static ceres::CostFunction* Create(const Eigen::Vector3d& observed_camera_position) {
     return (
-        new ceres::AutoDiffCostFunction<ReprojErrorConstPositionCostFunction<CameraModel>,
-                                        2,
-                                        4,
-                                        //3,
+        new ceres::AutoDiffCostFunction<ReprojErrorKnownPositionCostFunction,
                                         3,
-                                        CameraModel::num_params>(
-            new ReprojErrorConstPositionCostFunction(cam_from_world_translation, point2D)));
+                                        4,
+                                        3>(
+            new ReprojErrorKnownPositionCostFunction(observed_camera_position)));
   }
 
 
   template <typename T>
   bool operator()(const T* const cam_from_world_rotation,
-                  //const T* const cam_from_world_translation,
-                  const T* const point3D,
-                  const T* const camera_params,
+                  const T* const cam_from_world_translation,
                   T* residuals) const {
-    const Eigen::Matrix<T, 3, 1> point3D_in_cam =
-        EigenQuaternionMap<T>(cam_from_world_rotation) * // rotation of the camera ref system respect the world reference system
-            EigenVector3Map<T>(point3D) +
-        cam_from_world_translation_; // cam_from_world_translation = vector from camera to world ref system
-    CameraModel::ImgFromCam(camera_params,
-                            point3D_in_cam[0],
-                            point3D_in_cam[1],
-                            point3D_in_cam[2],
-                            &residuals[0],
-                            &residuals[1]);
-    residuals[0] -= T(observed_x_);
-    residuals[1] -= T(observed_y_);
+    const Eigen::Matrix<T, 3, 1> camera_position =  -(EigenQuaternionMap<T>(cam_from_world_rotation).conjugate() * EigenVector3Map<T>(cam_from_world_translation));
+    residuals[0] = T(10000) * (camera_position(0) - T(observed_camera_position_(0)));
+    residuals[1] = T(10000) * (camera_position(1) - T(observed_camera_position_(1)));
+    residuals[2] = T(10000) * (camera_position(2) - T(observed_camera_position_(2)));
     return true;
   }
 
  private:
-  const Eigen::Vector3d cam_from_world_translation_;
-  const double observed_x_;
-  const double observed_y_;
+  const Eigen::Vector3d observed_camera_position_;
 };
 
 

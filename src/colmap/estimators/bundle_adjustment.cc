@@ -350,30 +350,32 @@ void BundleAdjuster::SetUp(Reconstruction* reconstruction,
                            ceres::LossFunction* loss_function) {
 
   // --- Added Luca ---
+
+  std::unordered_map<std::string,Eigen::Vector3d> imagePositions;
+  std::ifstream inputFile("/home/threedom/tests/recalibration_high_res_3_giri/fusion_positions.txt"); // std::ifstream inputFile("/home/threedom/tests/cyprus1500/positions_scaled.txt");
+  if (!inputFile.is_open()) {
+      std::cerr << "Error opening the file." << std::endl;
+      std::exit(EXIT_FAILURE);
+  }
+  std::string line;
+  while (getline(inputFile, line)) {
+      std::istringstream iss(line);
+      std::string imageName, x, y, z;
+      double xd, yd, zd;
+      getline(iss, imageName, ',');
+      getline(iss, x, ',');
+      getline(iss, y, ',');
+      getline(iss, z, ',');
+      xd = std::stod(x);
+      yd = std::stod(y);
+      zd = std::stod(z);
+      Eigen::Vector3d position(xd, yd, zd);
+      imagePositions[imageName] = position;
+  }
+  inputFile.close();
+
   // Check enough images inside Reconstruction, read GPS camera positions and store in imagePositions
   if (config_.NumImages() > 4) {
-    std::unordered_map<std::string,Eigen::Vector3d> imagePositions;
-    std::ifstream inputFile("/home/threedom/tests/recalibration_high_res_3_giri/fusion_positions.txt"); // std::ifstream inputFile("/home/threedom/tests/cyprus1500/positions_scaled.txt");
-    if (!inputFile.is_open()) {
-        std::cerr << "Error opening the file." << std::endl;
-        std::exit(EXIT_FAILURE);
-    }
-    std::string line;
-    while (getline(inputFile, line)) {
-        std::istringstream iss(line);
-        std::string imageName, x, y, z;
-        double xd, yd, zd;
-        getline(iss, imageName, ',');
-        getline(iss, x, ',');
-        getline(iss, y, ',');
-        getline(iss, z, ',');
-        xd = std::stod(x);
-        yd = std::stod(y);
-        zd = std::stod(z);
-        Eigen::Vector3d position(xd, yd, zd);
-        imagePositions[imageName] = position;
-    }
-    inputFile.close();
 
     //// Remove images without GPS
     //for (const image_t id : config_.Images()) {
@@ -406,15 +408,15 @@ void BundleAdjuster::SetUp(Reconstruction* reconstruction,
     //std::cout << transformation.ToMatrix() << std::endl;
     reconstruction->Transform(transformation); // apply the transformation to the reconstruction
 
-    // Move images to the known GPS position
-    for (const auto& entry : imagePositions) {
-      for (const image_t image_id : config_.Images()) {
-        Image& image = reconstruction->Image(image_id);
-        if (entry.first == image.Name()) {
-          image.UpdateCameraPosition(entry.second);
-        }
-      }
-    }
+    //// Move images to the known GPS position
+    //for (const auto& entry : imagePositions) {
+    //  for (const image_t image_id : config_.Images()) {
+    //    Image& image = reconstruction->Image(image_id);
+    //    if (entry.first == image.Name()) {
+    //      image.UpdateCameraPosition(entry.second);
+    //    }
+    //  }
+    //}
   
   // For debugging rotoranslation with scale factor:
   //reconstruction -> Write("/mnt/c/Users/lmorelli/Desktop/buttare/outs-optimized");
@@ -425,7 +427,7 @@ void BundleAdjuster::SetUp(Reconstruction* reconstruction,
   // Warning: AddPointsToProblem assumes that AddImageToProblem is called first.
   // Do not change order of instructions!
   for (const image_t image_id : config_.Images()) {
-    AddImageToProblem(image_id, reconstruction, loss_function);
+    AddImageToProblem(image_id, reconstruction, loss_function, imagePositions);
   }
   //for (const auto point3D_id : config_.VariablePoints()) {
   //  AddPointToProblem(point3D_id, reconstruction, loss_function);
@@ -444,9 +446,18 @@ void BundleAdjuster::TearDown(Reconstruction*) {
 
 void BundleAdjuster::AddImageToProblem(const image_t image_id,
                                        Reconstruction* reconstruction,
-                                       ceres::LossFunction* loss_function) {
+                                       ceres::LossFunction* loss_function,
+                                       std::unordered_map<std::string,Eigen::Vector3d> imagePositions
+                                       ) {
   Image& image = reconstruction->Image(image_id);
   Camera& camera = reconstruction->Camera(image.CameraId());
+
+  // Check if current image has known camera position.
+  bool has_known_position = false;
+  auto it = imagePositions.find(image.Name());
+  if (it != imagePositions.end()) {
+    has_known_position = true;
+  }
 
   // CostFunction assumes unit quaternions.
   image.CamFromWorld().rotation.normalize();
@@ -512,33 +523,20 @@ void BundleAdjuster::AddImageToProblem(const image_t image_id,
     }
   }
 
+// Add residual block when GPS position is known
+if (has_known_position){
+    ceres::CostFunction* cost_function = nullptr;
+    cost_function = ReprojErrorKnownPositionCostFunction::Create(imagePositions[image.Name()]);
+
+    problem_->AddResidualBlock(cost_function,
+                               loss_function,
+                               cam_from_world_rotation,
+                               cam_from_world_translation);
+  }
+
+
   if (num_observations > 0) {
     camera_ids_.insert(image.CameraId());
-
-    
-    // Read GPS camera positions
-    std::unordered_map<std::string,Eigen::Vector3d> imagePositions;
-    std::ifstream inputFile("/home/threedom/tests/recalibration_high_res_3_giri/fusion_positions.txt"); // std::ifstream inputFile("/home/threedom/tests/cyprus1500/positions_scaled.txt");
-    if (!inputFile.is_open()) {
-        std::cerr << "Error opening the file." << std::endl;
-        std::exit(EXIT_FAILURE);
-    }
-    std::string line;
-    while (getline(inputFile, line)) {
-        std::istringstream iss(line);
-        std::string imageName, x, y, z;
-        double xd, yd, zd;
-        getline(iss, imageName, ',');
-        getline(iss, x, ',');
-        getline(iss, y, ',');
-        getline(iss, z, ',');
-        xd = std::stod(x);
-        yd = std::stod(y);
-        zd = std::stod(z);
-        Eigen::Vector3d position(xd, yd, zd);
-        imagePositions[imageName] = position;
-    }
-    inputFile.close();
 
     // Setting which images have constant camera positions
     for (const auto& entry : imagePositions) {
@@ -564,8 +562,9 @@ void BundleAdjuster::AddImageToProblem(const image_t image_id,
         //                  problem_.get(),
         //                  cam_from_world_translation);
         
-        problem_->SetParameterBlockConstant(cam_from_world_translation);
-        problem_->SetParameterBlockConstant(cam_from_world_rotation);
+        //problem_->SetParameterBlockConstant(cam_from_world_translation);
+        //problem_->SetParameterBlockConstant(cam_from_world_rotation);
+
         //std::cout << config_.HasConstantCamPositions(image_id);
         //std::cout << "applied" << image_id << std::endl;
       } else {

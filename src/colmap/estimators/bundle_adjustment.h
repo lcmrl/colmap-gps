@@ -43,7 +43,7 @@ namespace colmap {
 struct BundleAdjustmentOptions {
   // Loss function types: Trivial (non-robust) and Cauchy (robust) loss.
   enum class LossFunctionType { TRIVIAL, SOFT_L1, CAUCHY };
-  LossFunctionType loss_function_type = LossFunctionType::CAUCHY; // --- Luca: default eas TRIVIAL ---
+  LossFunctionType loss_function_type = LossFunctionType::TRIVIAL; // --- Luca: default is TRIVIAL ---
 
   // Scaling factor determines residual at which robustification takes place.
   double loss_function_scale = 1.0;
@@ -179,7 +179,8 @@ class BundleAdjuster {
 
   void AddImageToProblem(image_t image_id,
                          Reconstruction* reconstruction,
-                         ceres::LossFunction* loss_function);
+                         ceres::LossFunction* loss_function,
+                         std::unordered_map<std::string,Eigen::Vector3d> imagePositions);
 
   void AddPointToProblem(point3D_t point3D_id,
                          Reconstruction* reconstruction,
