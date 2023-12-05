@@ -377,14 +377,14 @@ void BundleAdjuster::SetUp(Reconstruction* reconstruction,
   // Check enough images inside Reconstruction, read GPS camera positions and store in imagePositions
   if (config_.NumImages() > 4) {
 
-    //// Remove images without GPS
-    //for (const image_t id : config_.Images()) {
-    //  Image& image = reconstruction->Image(id);
-    //  auto it = imagePositions.find(image.Name());
-    //  if (it == imagePositions.end()) {
-    //    reconstruction->DeRegisterImage(id);
-    //  }
-    //}
+    // Remove images without GPS
+    for (const image_t id : config_.Images()) {
+      Image& image = reconstruction->Image(id);
+      auto it = imagePositions.find(image.Name());
+      if (it == imagePositions.end()) {
+        reconstruction->DeRegisterImage(id);
+      }
+    }
 
     // Calculate 7 params transformation
     std::vector<Eigen::Vector3d> src;

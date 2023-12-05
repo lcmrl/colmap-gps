@@ -65,9 +65,9 @@ class ReprojErrorKnownPositionCostFunction {
                   const T* const cam_from_world_translation,
                   T* residuals) const {
     const Eigen::Matrix<T, 3, 1> camera_position =  -(EigenQuaternionMap<T>(cam_from_world_rotation).conjugate() * EigenVector3Map<T>(cam_from_world_translation));
-    residuals[0] = T(10000) * (camera_position(0) - T(observed_camera_position_(0)));
-    residuals[1] = T(10000) * (camera_position(1) - T(observed_camera_position_(1)));
-    residuals[2] = T(10000) * (camera_position(2) - T(observed_camera_position_(2)));
+    residuals[0] = T(10) * (camera_position(0) - T(observed_camera_position_(0)));
+    residuals[1] = T(10) * (camera_position(1) - T(observed_camera_position_(1)));
+    residuals[2] = T(10) * (camera_position(2) - T(observed_camera_position_(2)));
     return true;
   }
 
